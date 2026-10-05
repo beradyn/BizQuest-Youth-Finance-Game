@@ -14,15 +14,23 @@ import {
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { GameProvider } from '@/providers/GameProvider';
+import { AuthProvider } from '@/providers/AuthProvider';
+import { RewardCelebration } from '@/components/RewardCelebration';
+import { setBaseUrl } from '@workspace/api-client-react';
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
 
 const queryClient = new QueryClient();
+if (process.env.EXPO_PUBLIC_DOMAIN) {
+  setBaseUrl(`https://${process.env.EXPO_PUBLIC_DOMAIN}`);
+}
 
 function RootLayoutNav() {
   return (
     <Stack screenOptions={{ headerBackTitle: 'Back' }}>
+      <Stack.Screen name="index" options={{ headerShown: false }} />
+      <Stack.Screen name="auth" options={{ headerShown: false, animation: 'fade' }} />
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
     </Stack>
   );
@@ -48,13 +56,16 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <ErrorBoundary>
         <QueryClientProvider client={queryClient}>
-          <GameProvider>
-            <GestureHandlerRootView style={{ flex: 1 }}>
-              <KeyboardProvider>
-                <RootLayoutNav />
-              </KeyboardProvider>
-            </GestureHandlerRootView>
-          </GameProvider>
+          <AuthProvider>
+            <GameProvider>
+              <GestureHandlerRootView style={{ flex: 1 }}>
+                <KeyboardProvider>
+                  <RootLayoutNav />
+                  <RewardCelebration />
+                </KeyboardProvider>
+              </GestureHandlerRootView>
+            </GameProvider>
+          </AuthProvider>
         </QueryClientProvider>
       </ErrorBoundary>
     </SafeAreaProvider>

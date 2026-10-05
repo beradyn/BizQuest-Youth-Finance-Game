@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -6,7 +7,7 @@ import * as Haptics from 'expo-haptics';
 import { AppButton, BrandHeader, Page, PageHeading, Panel, RoundIcon, SectionHeading } from '@/components/GameUI';
 import { useColors } from '@/hooks/useColors';
 import { useGame } from '@/providers/GameProvider';
-import { VENTURES, type Venture, type VentureId } from '@/constants/game-content';
+import { BUSINESS_EVENTS, VENTURES, type Venture, type VentureId } from '@/constants/game-content';
 
 export default function BusinessScreen() {
   const colors = useColors();
@@ -19,6 +20,8 @@ export default function BusinessScreen() {
     changePrice,
     saveMoney,
     withdrawSavings,
+    hireHelper,
+    resolveBusinessEvent,
   } = useGame();
   const venture = VENTURES.find((item) => item.id === state.ventureId);
   const feedback = (success: boolean, message: string) => {
@@ -27,6 +30,9 @@ export default function BusinessScreen() {
     return message;
   };
   const [message, setMessage] = React.useState('');
+  const [eventOpen, setEventOpen] = React.useState(false);
+  const [eventMessage, setEventMessage] = React.useState('');
+  const [eventError, setEventError] = React.useState('');
 
   if (!venture) {
     return (
@@ -67,6 +73,34 @@ export default function BusinessScreen() {
 
   const restockCost = venture.unitCost * 4;
   const profitPerItem = state.salePrice - venture.unitCost;
+  const event = BUSINESS_EVENTS[state.eventCycle % BUSINESS_EVENTS.length]!;
+  const customerMood = state.salePrice > venture.salePrice + 2
+    ? 'That price is a bit high for me. Could you lower it?'
+    : state.salePrice < venture.salePrice - 2
+      ? 'What a deal! I might tell my friends.'
+      : 'That looks great! I could go for one.';
+  const makeSale = () => {
+    if (state.salePrice > venture.salePrice + 2) {
+      setMessage('A customer passed: “That price is a bit high for me.” Try lowering it to make a sale.');
+      void Haptics.selectionAsync();
+      return;
+    }
+    const sold = sellProduct();
+    if (!sold) {
+      setMessage(state.inventory <= 0 ? 'You are sold out! Restock before the next customer arrives.' : 'No sale just yet. Try a different price.');
+      return;
+    }
+    const finishesWeek = state.weekSales === 4;
+    const reactions = [
+      '“So refreshing! I’ll tell my friends.”',
+      '“This is exactly what I was looking for!”',
+      '“Great value. I’ll come back next market day.”',
+    ];
+    setMessage(finishesWeek
+      ? 'Five happy customers! You earned the Sales Star weekly badge and a 25 XP bonus.'
+      : `A customer bought one! ${reactions[state.sold % reactions.length]}`);
+    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  };
 
   return (
     <Page>
@@ -76,6 +110,21 @@ export default function BusinessScreen() {
         title={venture.name}
         description="Make a plan, choose a price, and learn from every sale."
       />
+
+      <View style={styles.sceneCard}>
+        <Image
+          source={artForVenture(venture.id)}
+          contentFit="cover"
+          style={styles.sceneImage}
+          accessibilityLabel={`${venture.name} illustrated business scene`}
+        />
+        <View style={[styles.sceneCaption, { backgroundColor: colors.card }]}>
+          <Ionicons name="sunny" size={15} color={colors.accentForeground} />
+          <Text style={[styles.sceneCaptionText, { color: colors.foreground }]}>
+            {state.helperHired ? 'Your helper is ready for the next customer!' : 'Your shop is open. The neighborhood is waking up!'}
+          </Text>
+        </View>
+      </View>
 
       <View style={styles.moneyRow}>
         <MoneyTile
@@ -153,13 +202,56 @@ export default function BusinessScreen() {
         </Text>
       </Panel>
 
-      <SectionHeading title="Run your shop" />
-      {message ? (
-        <View style={[styles.actionMessage, { backgroundColor: colors.mintSoft }]}>
-          <Ionicons name="checkmark-circle" size={18} color={colors.mint} />
-          <Text style={[styles.actionMessageText, { color: colors.secondaryForeground }]}>{message}</Text>
+      <Panel tone="lavender" style={styles.weekPanel}>
+        <View style={styles.weekTop}>
+          <RoundIcon name="ribbon-outline" color={colors.violet} background={colors.card} size={42} />
+          <View style={styles.weekCopy}>
+            <Text style={[styles.weekTitle, { color: colors.foreground }]}>
+              {`Shop level ${Math.floor(state.sold / 5) + 1} · ${state.weeksCompleted ? `market week ${state.weeksCompleted + 1}` : 'first sales sprint'}`}
+            </Text>
+            <Text style={[styles.weekDescription, { color: colors.mutedForeground }]}>
+              {state.weeksCompleted} weeks finished · 5 sales earns a Sales Star
+            </Text>
+          </View>
+          <Text style={[styles.weekCount, { color: colors.violet }]}>{state.weekSales}/5</Text>
         </View>
-      ) : null}
+        <View style={[styles.weekTrack, { backgroundColor: colors.card }]}>
+          <View style={[styles.weekFill, { backgroundColor: colors.violet, width: `${Math.max(4, state.weekSales * 20)}%` }]} />
+        </View>
+        <View style={styles.weekFooter}>
+          <Text style={[styles.weekHint, { color: colors.inkSoft }]}>{state.sold} happy customers served</Text>
+          <Text style={[styles.weekHint, { color: colors.violet }]}>+25 XP at 5</Text>
+        </View>
+      </Panel>
+
+      <Panel tone="gold" style={styles.customerPanel}>
+        <View style={styles.customerTop}>
+          <View style={[styles.customerAvatar, { backgroundColor: colors.card }]}>
+            <Ionicons name="person" size={24} color={colors.primary} />
+          </View>
+          <View style={styles.customerCopy}>
+            <Text style={[styles.customerEyebrow, { color: colors.primary }]}>A NEIGHBOR IS SHOPPING</Text>
+            <Text style={[styles.customerTitle, { color: colors.foreground }]}>{customerMood}</Text>
+          </View>
+          <Ionicons name="chatbubble-ellipses" size={19} color={colors.accentForeground} />
+        </View>
+        {message ? (
+          <View style={[styles.actionMessage, { backgroundColor: colors.card }]}>
+            <Ionicons name={message.includes('passed') || message.includes('sold out') ? 'chatbubble-ellipses' : 'checkmark-circle'} size={18} color={message.includes('passed') || message.includes('sold out') ? colors.primary : colors.mint} />
+            <Text style={[styles.actionMessageText, { color: colors.secondaryForeground }]}>{message}</Text>
+          </View>
+        ) : null}
+        <AppButton
+          label={state.inventory > 0 ? 'Serve this customer' : 'Restock for the next customer'}
+          icon={state.inventory > 0 ? 'basket-outline' : 'cart-outline'}
+          compact
+          disabled={state.inventory <= 0}
+          testID="sell-product"
+          onPress={makeSale}
+        />
+      </Panel>
+
+      <SectionHeading title="Run your shop" />
       <View style={styles.actionRow}>
         <ActionCard
           icon="cart-outline"
@@ -171,13 +263,13 @@ export default function BusinessScreen() {
           onPress={() => setMessage(feedback(restock(), 'Four products added to your shelf.'))}
         />
         <ActionCard
-          icon="pricetag-outline"
-          title="Make a sale"
-          detail={`Earn ${state.salePrice} · ${state.inventory} ready`}
+          icon={state.helperHired ? 'people-outline' : 'person-add-outline'}
+          title={state.helperHired ? 'Helper on shift' : 'Hire a helper'}
+          detail={state.helperHired ? 'Earn +2 per sale together' : 'Spend 35 · +2 per sale'}
           tone="mint"
-          disabled={state.inventory <= 0}
-          testID="sell-product"
-          onPress={() => setMessage(feedback(sellProduct(), 'Sale made! Your cash is growing.'))}
+          disabled={state.helperHired || state.cash < 35}
+          testID="hire-helper"
+          onPress={() => setMessage(feedback(hireHelper(), 'A shop helper joined your team! You now earn 2 extra Biz Bucks per sale.'))}
         />
       </View>
 
@@ -190,9 +282,9 @@ export default function BusinessScreen() {
             size={42}
           />
           <View style={styles.savingsText}>
-            <Text style={[styles.savingsTitle, { color: colors.foreground }]}>Build your safety stash</Text>
+            <Text style={[styles.savingsTitle, { color: colors.foreground }]}>Emergency fund</Text>
             <Text style={[styles.savingsDescription, { color: colors.mutedForeground }]}>
-              Save 10 before you spend. Future-you will thank you.
+              Save Biz Bucks for surprise costs like a broken cooler or rainy market day.
             </Text>
           </View>
         </View>
@@ -216,6 +308,63 @@ export default function BusinessScreen() {
             onPress={() => setMessage(feedback(withdrawSavings(), '10 Biz Bucks moved back to your wallet.'))}
           />
         </View>
+      </Panel>
+
+      <Panel tone="orange" style={styles.eventPanel}>
+        <View style={styles.eventHeading}>
+          <RoundIcon name="warning-outline" color={colors.primary} background={colors.card} size={43} />
+          <View style={styles.eventTitleWrap}>
+            <Text style={[styles.eventOverline, { color: colors.primary }]}>FOUNDER DECISION</Text>
+            <Text style={[styles.eventTitle, { color: colors.foreground }]}>{event.title}</Text>
+          </View>
+        </View>
+        <Text style={[styles.eventStory, { color: colors.inkSoft }]}>{event.story}</Text>
+        {eventMessage ? (
+          <View style={[styles.eventFeedback, { backgroundColor: colors.mintSoft }]}>
+            <Ionicons name="checkmark-circle" size={19} color={colors.mint} />
+            <Text style={[styles.eventFeedbackText, { color: colors.secondaryForeground }]}>{eventMessage}</Text>
+          </View>
+        ) : null}
+        {eventError ? <Text style={[styles.eventError, { color: colors.destructive }]}>{eventError}</Text> : null}
+        {eventOpen && !eventMessage ? event.choices.map((choice, index) => {
+          const price = event.id === 'broken-cooler' && index === 0 ? 12
+            : event.id === 'broken-cooler' && index === 2 ? 5
+            : event.id === 'rainy-market' && index === 0 ? 8
+            : event.id === 'supply-shortage' && index === 0 ? 16
+            : 0;
+          const usesFund = event.id === 'broken-cooler' && index === 0;
+          const canAfford = usesFund ? state.savings >= price : state.cash >= price;
+          return (
+            <Pressable
+              key={choice.label}
+              accessibilityRole="button"
+              accessibilityState={{ disabled: !canAfford }}
+              disabled={!canAfford}
+              onPress={() => {
+                setEventError('');
+                const result = resolveBusinessEvent(index);
+                if (result) { setEventMessage(result); setEventOpen(false); }
+                else setEventError(usesFund ? 'Your emergency fund needs more savings first. Choose a different plan.' : 'Your wallet needs a few more Biz Bucks for that choice. Choose another plan.');
+              }}
+              style={[styles.choiceCard, { backgroundColor: colors.card, borderColor: colors.border, opacity: canAfford ? 1 : 0.55 }]}
+            >
+              <View style={[styles.choiceNumber, { backgroundColor: colors.goldSoft }]}>
+                <Text style={[styles.choiceNumberText, { color: colors.accentForeground }]}>{index + 1}</Text>
+              </View>
+              <View style={styles.choiceCopy}>
+                <Text style={[styles.choiceTitle, { color: colors.foreground }]}>{choice.label}</Text>
+                <Text style={[styles.choiceDescription, { color: colors.mutedForeground }]}>{choice.detail}</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={colors.mutedForeground} />
+            </Pressable>
+          );
+        }) : null}
+        {eventMessage ? (
+          <AppButton label="Next surprise" icon="arrow-forward" compact variant="secondary" onPress={() => { setEventMessage(''); setEventError(''); }} />
+        ) : !eventOpen ? (
+          <AppButton label="Choose what to do" icon="bulb-outline" compact variant="light" onPress={() => setEventOpen(true)} />
+        ) : null}
+        {eventMessage ? <Text style={[styles.eventXp, { color: colors.violet }]}>+10 Biz Points · smart thinking!</Text> : null}
       </Panel>
 
       <View style={styles.ledgerSection}>
@@ -264,6 +413,7 @@ function VentureChoice({ venture, onChoose }: { venture: Venture; onChoose: () =
       ]}
     >
       <RoundIcon name={venture.icon} color={tone.icon} background={tone.bg} size={48} />
+      <Image source={artForVenture(venture.id)} contentFit="cover" style={styles.ventureArtwork} accessibilityLabel={`${venture.name} illustration`} />
       <View style={styles.ventureCopy}>
         <Text style={[styles.ventureName, { color: colors.foreground }]}>{venture.name}</Text>
         <Text style={[styles.ventureDescription, { color: colors.mutedForeground }]}>{venture.description}</Text>
@@ -274,6 +424,13 @@ function VentureChoice({ venture, onChoose }: { venture: Venture; onChoose: () =
       <Ionicons name="chevron-forward" size={19} color={colors.mutedForeground} />
     </Pressable>
   );
+}
+
+function artForVenture(id: VentureId) {
+  if (id === 'lemonade') return require('../../assets/images/lemonade-hero.png');
+  if (id === 'art') return require('../../assets/images/art-studio.png');
+  if (id === 'bakes') return require('../../assets/images/bake-shop.png');
+  return require('../../assets/images/plant-shop.png');
 }
 
 function MoneyTile({
@@ -357,6 +514,7 @@ const styles = StyleSheet.create({
   practiceNoteText: { flex: 1, fontSize: 11, fontWeight: '700', lineHeight: 16 },
   ventureList: { gap: 10 },
   ventureChoice: { borderWidth: 1, borderRadius: 21, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 112 },
+  ventureArtwork: { width: 74, height: 84, borderRadius: 15 },
   ventureCopy: { flex: 1, gap: 3 },
   ventureName: { fontSize: 15, fontWeight: '900' },
   ventureDescription: { fontSize: 11, lineHeight: 15 },
@@ -388,6 +546,26 @@ const styles = StyleSheet.create({
   profitValue: { fontSize: 14, fontWeight: '900' },
   profitLabel: { fontSize: 7, fontWeight: '900' },
   moneyDefinition: { textAlign: 'center', fontSize: 9, fontWeight: '700' },
+  sceneCard: { borderRadius: 24, overflow: 'hidden', backgroundColor: '#FFFFFF', position: 'relative' },
+  sceneImage: { width: '100%', height: 192 },
+  sceneCaption: { minHeight: 41, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 7 },
+  sceneCaptionText: { flex: 1, fontSize: 11, fontWeight: '800' },
+  weekPanel: { gap: 10 },
+  weekTop: { flexDirection: 'row', alignItems: 'center', gap: 9 },
+  weekCopy: { flex: 1, gap: 2 },
+  weekTitle: { fontSize: 14, fontWeight: '900' },
+  weekDescription: { fontSize: 10, lineHeight: 14 },
+  weekCount: { fontSize: 15, fontWeight: '900' },
+  weekTrack: { height: 9, borderRadius: 9, overflow: 'hidden' },
+  weekFill: { height: '100%', borderRadius: 9 },
+  weekFooter: { flexDirection: 'row', justifyContent: 'space-between' },
+  weekHint: { fontSize: 9, fontWeight: '800' },
+  customerPanel: { gap: 11 },
+  customerTop: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  customerAvatar: { width: 43, height: 43, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  customerCopy: { flex: 1, gap: 3 },
+  customerEyebrow: { fontSize: 8, letterSpacing: 0.8, fontWeight: '900' },
+  customerTitle: { fontSize: 12, lineHeight: 17, fontWeight: '800' },
   actionMessage: { borderRadius: 13, padding: 11, flexDirection: 'row', gap: 8, alignItems: 'center' },
   actionMessageText: { flex: 1, fontSize: 12, fontWeight: '700' },
   actionRow: { flexDirection: 'row', gap: 10 },
@@ -400,6 +578,22 @@ const styles = StyleSheet.create({
   savingsTitle: { fontSize: 15, fontWeight: '900' },
   savingsDescription: { fontSize: 11, lineHeight: 16 },
   savingsActions: { flexDirection: 'row', gap: 8 },
+  eventPanel: { gap: 12 },
+  eventHeading: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  eventTitleWrap: { flex: 1, gap: 3 },
+  eventOverline: { fontSize: 8, fontWeight: '900', letterSpacing: 0.9 },
+  eventTitle: { fontSize: 16, fontWeight: '900' },
+  eventStory: { fontSize: 12, lineHeight: 18 },
+  choiceCard: { borderWidth: 1, borderRadius: 16, minHeight: 68, padding: 10, flexDirection: 'row', alignItems: 'center', gap: 9 },
+  choiceNumber: { width: 27, height: 27, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  choiceNumberText: { fontSize: 12, fontWeight: '900' },
+  choiceCopy: { flex: 1, gap: 2 },
+  choiceTitle: { fontSize: 12, fontWeight: '900' },
+  choiceDescription: { fontSize: 10, lineHeight: 14 },
+  eventFeedback: { borderRadius: 14, padding: 10, flexDirection: 'row', alignItems: 'flex-start', gap: 7 },
+  eventFeedbackText: { flex: 1, fontSize: 11, lineHeight: 16, fontWeight: '700' },
+  eventError: { fontSize: 11, lineHeight: 15, fontWeight: '700' },
+  eventXp: { textAlign: 'center', fontSize: 10, fontWeight: '900' },
   ledgerSection: { gap: 7 },
   emptyLedger: { fontSize: 12, lineHeight: 18 },
   ledgerRow: { minHeight: 42, borderBottomWidth: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },

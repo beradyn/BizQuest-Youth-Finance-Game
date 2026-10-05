@@ -70,6 +70,46 @@ export interface Quest {
   explanation: string;
 }
 
+export interface BusinessEvent {
+  id: string;
+  title: string;
+  story: string;
+  choices: { label: string; detail: string }[];
+}
+
+export const BUSINESS_EVENTS: BusinessEvent[] = [
+  {
+    id: 'broken-cooler',
+    title: 'Uh-oh! The cooler stopped.',
+    story: 'The lemonade is getting warm. A few customers are already in line. What is your smartest next move?',
+    choices: [
+      { label: 'Use my emergency fund', detail: 'Spend 12 Biz Bucks to borrow a cooler and keep serving.' },
+      { label: 'Pause and protect the drinks', detail: 'Stop sales, save your stock, and plan a safe restart.' },
+      { label: 'Ask my mentor for a hand', detail: 'Spend 5 Biz Bucks and learn how to check the cooler.' },
+    ],
+  },
+  {
+    id: 'rainy-market',
+    title: 'Rain is coming!',
+    story: 'Dark clouds roll over your busy market. Your table is outside and the first drops are falling.',
+    choices: [
+      { label: 'Rent a covered spot', detail: 'Spend 8 Biz Bucks to stay open and keep your display dry.' },
+      { label: 'Move inside with a neighbor', detail: 'Team up, share space, and keep your money safe.' },
+      { label: 'Close early and make a plan', detail: 'Protect your supplies and decide what to improve next time.' },
+    ],
+  },
+  {
+    id: 'supply-shortage',
+    title: 'Your supplier is out!',
+    story: 'You need more supplies, but your usual shop has sold out. Customers are expecting you.',
+    choices: [
+      { label: 'Buy a backup batch', detail: 'Spend 16 Biz Bucks to restock from a different shop.' },
+      { label: 'Ask another maker to share', detail: 'Offer a fair trade and keep some money in your wallet.' },
+      { label: 'Save your emergency fund', detail: 'Take a short break and compare prices before buying.' },
+    ],
+  },
+];
+
 export const QUESTS: Quest[] = [
   {
     id: 'budget-basics',
@@ -141,4 +181,6 @@ export const BADGES = [
   { id: 'first-quest', name: 'Quick Thinker', detail: 'Solved your first money quest', icon: 'flash-outline' },
   { id: 'smart-saver', name: 'Smart Saver', detail: 'Set money aside for later', icon: 'shield-checkmark-outline' },
   { id: 'decision-maker', name: 'Decision Maker', detail: 'Finished every money quest', icon: 'trophy-outline' },
+  { id: 'sales-star', name: 'Sales Star', detail: 'Served five customers in one market week', icon: 'star-outline' },
+  { id: 'team-player', name: 'Team Player', detail: 'Hired a helper and grew your shop', icon: 'people-outline' },
 ] as const;

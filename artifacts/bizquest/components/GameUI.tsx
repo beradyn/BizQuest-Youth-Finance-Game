@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { StatusBar } from 'expo-status-bar';
 import React, { type ReactNode } from 'react';
+import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import {
   Platform,
   Pressable,
@@ -34,6 +35,19 @@ export function Page({ children }: { children: ReactNode }) {
           Platform.OS === 'web' && styles.webPageContent,
         ]}
       >
+        <View style={[styles.mascotGuide, { backgroundColor: colors.goldSoft }]}>
+          <Image
+            source={require('../assets/images/mascot-hero.png')}
+            style={styles.guideMascot}
+            contentFit="cover"
+            accessibilityLabel="BizQuest guide mascot"
+          />
+          <View style={styles.guideCopy}>
+            <Text style={[styles.guideTitle, { color: colors.accentForeground }]}>Your BizQuest buddy</Text>
+            <Text style={[styles.guideText, { color: colors.inkSoft }]}>Small choices help big ideas grow.</Text>
+          </View>
+          <Ionicons name="sparkles" size={17} color={colors.accentForeground} />
+        </View>
         {children}
       </ScrollView>
     </SafeAreaView>
@@ -157,6 +171,10 @@ export function AppButton({
   testID?: string;
 }) {
   const colors = useColors();
+  const pressScale = useSharedValue(1);
+  const pressStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: pressScale.value }],
+  }));
   const stylesByVariant = {
     primary: {
       backgroundColor: colors.primary,
@@ -185,21 +203,26 @@ export function AppButton({
       testID={testID}
       disabled={disabled}
       onPress={onPress}
+      onPressIn={() => { if (!disabled) pressScale.value = withSpring(0.96, { damping: 13, stiffness: 260 }); }}
+      onPressOut={() => { pressScale.value = withSpring(1, { damping: 12, stiffness: 240 }); }}
       style={({ pressed }) => [
-        styles.button,
-        compact && styles.buttonCompact,
-        {
-          backgroundColor: stylesByVariant.backgroundColor,
-          borderColor: stylesByVariant.borderColor,
-          opacity: disabled ? 0.45 : pressed ? 0.82 : 1,
-          transform: [{ scale: pressed && !disabled ? 0.98 : 1 }],
-        },
+        styles.buttonPressable,
+        { opacity: disabled ? 0.45 : pressed ? 0.94 : 1 },
       ]}
     >
-      <Text style={[styles.buttonLabel, compact && styles.buttonLabelCompact, { color: stylesByVariant.color }]}>
-        {label}
-      </Text>
-      {icon ? <Ionicons name={icon} size={18} color={stylesByVariant.color} /> : null}
+      <Animated.View
+        style={[
+          styles.button,
+          compact && styles.buttonCompact,
+          pressStyle,
+          { backgroundColor: stylesByVariant.backgroundColor, borderColor: stylesByVariant.borderColor },
+        ]}
+      >
+        <Text style={[styles.buttonLabel, compact && styles.buttonLabelCompact, { color: stylesByVariant.color }]}>
+          {label}
+        </Text>
+        {icon ? <Ionicons name={icon} size={18} color={stylesByVariant.color} /> : null}
+      </Animated.View>
     </Pressable>
   );
 }
@@ -239,6 +262,11 @@ const styles = StyleSheet.create({
     paddingBottom: 116,
     gap: 19,
   },
+  mascotGuide: { minHeight: 57, borderRadius: 18, paddingHorizontal: 9, paddingVertical: 6, flexDirection: 'row', alignItems: 'center', gap: 9 },
+  guideMascot: { width: 43, height: 43, borderRadius: 13 },
+  guideCopy: { flex: 1, gap: 2 },
+  guideTitle: { fontSize: 10, fontWeight: '900' },
+  guideText: { fontSize: 11, lineHeight: 14, fontWeight: '600' },
   webPageContent: {
     paddingTop: 67,
     paddingBottom: 122,
@@ -290,6 +318,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 9,
   },
+  buttonPressable: { alignSelf: 'stretch' },
   buttonCompact: { minHeight: 40, borderRadius: 14, paddingHorizontal: 13 },
   buttonLabel: { fontSize: 14, fontWeight: '900' },
   buttonLabelCompact: { fontSize: 12 },

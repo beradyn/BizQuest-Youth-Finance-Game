@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import { useRouter } from 'expo-router';
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { FounderAvatar } from '@/components/FounderAvatar';
@@ -14,6 +15,7 @@ import {
 } from '@/constants/game-content';
 import { useColors } from '@/hooks/useColors';
 import { useGame } from '@/providers/GameProvider';
+import { useAuth } from '@/providers/AuthProvider';
 
 const ACCESSORIES: { id: AvatarAccessory; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
   { id: 'none', label: 'None', icon: 'close' },
@@ -22,9 +24,16 @@ const ACCESSORIES: { id: AvatarAccessory; label: string; icon: keyof typeof Ioni
   { id: 'headband', label: 'Headband', icon: 'ribbon-outline' },
   { id: 'bow', label: 'Star clip', icon: 'star-outline' },
 ];
+const HAIR_STYLES = [
+  { id: 'short', name: 'Cropped', selection: 'short', icon: 'cut-outline' },
+  { id: 'curls', name: 'Curly', selection: 'curls', icon: 'sunny-outline' },
+  { id: 'long', name: 'Long waves', selection: 'long', icon: 'water-outline' },
+] as const;
 
 export default function AvatarScreen() {
   const colors = useColors();
+  const router = useRouter();
+  const { user, signOut } = useAuth();
   const { state, updateAvatar, chooseName, level, xpIntoLevel } = useGame();
   const earnedBadges = BADGES.filter((badge) => state.badges.includes(badge.id));
   const setAvatar = (key: 'skin' | 'hair' | 'shirt', value: string) => {
@@ -77,6 +86,17 @@ export default function AvatarScreen() {
         selected={state.avatar.skin}
         onSelect={(value) => setAvatar('skin', value)}
         colorsAsSwatches
+      />
+      <CustomizeGroup
+        title="Hairstyle"
+        description="Choose a silhouette that feels like you"
+        values={HAIR_STYLES.map((style) => ({ name: style.name, value: style.id, selection: style.selection, icon: style.icon }))}
+        selected={state.avatar.hairStyle}
+        onSelect={(value) => {
+          updateAvatar({ hairStyle: value as 'short' | 'curls' | 'long' });
+          void Haptics.selectionAsync();
+        }}
+        colorsAsSwatches={false}
       />
       <CustomizeGroup
         title="Hair color"
@@ -140,6 +160,22 @@ export default function AvatarScreen() {
         <Text style={[styles.saveNoteText, { color: colors.secondaryForeground }]}>
           Your founder look saves as you make each choice.
         </Text>
+      </Panel>
+      <Panel tone="plain" style={styles.accountPanel}>
+        <View style={styles.accountCopy}>
+          <Ionicons name="person-circle-outline" size={27} color={colors.primary} />
+          <View style={styles.accountText}>
+            <Text style={[styles.accountTitle, { color: colors.foreground }]}>Signed in as {user?.username}</Text>
+            <Text style={[styles.accountDetail, { color: colors.mutedForeground }]}>Your founder profile is ready whenever you are.</Text>
+          </View>
+        </View>
+        <AppButton
+          label="Sign out"
+          icon="log-out-outline"
+          variant="outline"
+          compact
+          onPress={() => { void signOut().finally(() => router.replace('/auth')); }}
+        />
       </Panel>
     </Page>
   );
@@ -305,4 +341,9 @@ const styles = StyleSheet.create({
   badgeCard: { width: '48%', minHeight: 102, padding: 12, gap: 4 },
   badgeName: { fontSize: 13, fontWeight: '900' },
   badgeDetail: { fontSize: 10, lineHeight: 14 },
+  accountPanel: { gap: 12 },
+  accountCopy: { flexDirection: 'row', alignItems: 'center', gap: 9 },
+  accountText: { flex: 1, gap: 3 },
+  accountTitle: { fontSize: 13, fontWeight: '900' },
+  accountDetail: { fontSize: 10, lineHeight: 14 },
 });

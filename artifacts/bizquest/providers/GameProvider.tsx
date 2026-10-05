@@ -17,8 +17,9 @@ import {
   VentureId,
   VENTURES,
 } from '@/constants/game-content';
+import { useAuth } from '@/providers/AuthProvider';
 
-const STORAGE_KEY = 'bizquest-progress-v1';
+const STORAGE_KEY = 'bizquest-progress-v2:';
 const STARTING_GRANT = 120;
 const RESTOCK_UNITS = 4;
 
@@ -27,6 +28,7 @@ export interface AvatarConfig {
   hair: string;
   shirt: string;
   accessory: AvatarAccessory;
+  hairStyle: 'short' | 'curls' | 'long';
 }
 
 export interface LedgerEntry {
@@ -49,6 +51,10 @@ export interface GameState {
   badges: string[];
   completedQuests: string[];
   ledger: LedgerEntry[];
+  helperHired: boolean;
+  weekSales: number;
+  weeksCompleted: number;
+  eventCycle: number;
 }
 
 const DEFAULT_STATE: GameState = {
@@ -58,6 +64,7 @@ const DEFAULT_STATE: GameState = {
     hair: HAIR_COLORS[0].value,
     shirt: SHIRT_COLORS[1].value,
     accessory: 'none',
+    hairStyle: 'curls',
   },
   ventureId: null,
   cash: 0,
@@ -70,6 +77,10 @@ const DEFAULT_STATE: GameState = {
   badges: [],
   completedQuests: [],
   ledger: [],
+  helperHired: false,
+  weekSales: 0,
+  weeksCompleted: 0,
+  eventCycle: 0,
 };
 
 interface GameContextValue {
@@ -87,6 +98,8 @@ interface GameContextValue {
   saveMoney: () => boolean;
   withdrawSavings: () => boolean;
   completeQuest: (id: string, correct: boolean) => boolean;
+  hireHelper: () => boolean;
+  resolveBusinessEvent: (choice: number) => string | null;
 }
 
 const GameContext = createContext<GameContextValue | null>(null);
@@ -113,18 +126,38 @@ function restoredState(raw: string): GameState | null {
 }
 
 export function GameProvider({ children }: { children: ReactNode }) {
+  const { user, ready: authReady } = useAuth();
   const [state, setState] = useState<GameState>(DEFAULT_STATE);
   const [hydrated, setHydrated] = useState(false);
   const [storageIssue, setStorageIssue] = useState(false);
+  const [loadedAccountId, setLoadedAccountId] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!authReady) return;
+    if (!user) {
+      setState(DEFAULT_STATE);
+      setLoadedAccountId(null);
+      setHydrated(true);
+      return;
+    }
+    const accountId = user.id;
+    const freshAccountState: GameState = {
+      ...DEFAULT_STATE,
+      playerName: user.username,
+      avatar: {
+        ...DEFAULT_STATE.avatar,
+        hairStyle: user.gender === 'girl' ? 'long' : user.gender === 'boy' ? 'short' : 'curls',
+      },
+    };
     let active = true;
-    AsyncStorage.getItem(STORAGE_KEY)
+    setHydrated(false);
+    setState(freshAccountState);
+    AsyncStorage.getItem(`${STORAGE_KEY}${accountId}`)
       .then((raw) => {
         if (!active) return;
         if (raw) {
           const saved = restoredState(raw);
-          if (saved) setState(saved);
+          if (saved) setState({ ...saved, playerName: saved.playerName === 'Alex' ? user.username : saved.playerName });
           else setStorageIssue(true);
         }
       })
@@ -132,17 +165,20 @@ export function GameProvider({ children }: { children: ReactNode }) {
         if (active) setStorageIssue(true);
       })
       .finally(() => {
-        if (active) setHydrated(true);
+        if (active) {
+          setLoadedAccountId(accountId);
+          setHydrated(true);
+        }
       });
     return () => {
       active = false;
     };
-  }, []);
+  }, [authReady, user?.id]);
 
   useEffect(() => {
-    if (!hydrated) return;
-    AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(state)).catch(() => setStorageIssue(true));
-  }, [hydrated, state]);
+    if (!hydrated || !user || loadedAccountId !== user.id) return;
+    AsyncStorage.setItem(`${STORAGE_KEY}${user.id}`, JSON.stringify(state)).catch(() => setStorageIssue(true));
+  }, [hydrated, state, user, loadedAccountId]);
 
   const chooseName = useCallback((name: string) => {
     if (!PLAYER_NAMES.includes(name)) return;
@@ -189,25 +225,41 @@ export function GameProvider({ children }: { children: ReactNode }) {
   }, [state.cash, state.ventureId]);
 
   const sellProduct = useCallback(() => {
-    if (!state.ventureId || state.inventory <= 0) return false;
+    const currentVenture = VENTURES.find((item) => item.id === state.ventureId);
+    if (!currentVenture || state.inventory <= 0 || state.salePrice > currentVenture.salePrice + 2) return false;
     setState((current) => {
       const venture = VENTURES.find((item) => item.id === current.ventureId);
       if (!venture || current.inventory <= 0) return current;
+      if (current.salePrice > venture.salePrice + 2) return current;
+      const weekSales = current.weekSales + 1;
+      const finishedWeek = weekSales >= 5;
+      const badges =
+        finishedWeek && !current.badges.includes('sales-star')
+          ? [...current.badges, 'sales-star']
+          : current.badges;
       const nextBadges =
         current.sold === 0 && !current.badges.includes('first-sale')
-          ? [...current.badges, 'first-sale']
-          : current.badges;
+          ? [...badges, 'first-sale']
+          : badges;
+      const helperBonus = current.helperHired ? 2 : 0;
       return {
         ...current,
         inventory: current.inventory - 1,
         sold: current.sold + 1,
-        cash: current.cash + current.salePrice,
+        cash: current.cash + current.salePrice + helperBonus,
+        xp: current.xp + 10 + (finishedWeek ? 25 : 0),
+        points: current.points + 5 + (finishedWeek ? 25 : 0),
+        weekSales: finishedWeek ? 0 : weekSales,
+        weeksCompleted: current.weeksCompleted + (finishedWeek ? 1 : 0),
         badges: nextBadges,
-        ledger: [makeEntry(`Sold 1 ${venture.product.toLowerCase()}`, current.salePrice), ...current.ledger].slice(0, 8),
+        ledger: [
+          makeEntry(`Sold 1 ${venture.product.toLowerCase()}`, current.salePrice + helperBonus),
+          ...current.ledger,
+        ].slice(0, 8),
       };
     });
     return true;
-  }, [state.inventory, state.ventureId]);
+  }, [state.inventory, state.salePrice, state.ventureId]);
 
   const changePrice = useCallback((amount: number) => {
     setState((current) => {
@@ -271,6 +323,78 @@ export function GameProvider({ children }: { children: ReactNode }) {
     [state.completedQuests],
   );
 
+  const hireHelper = useCallback(() => {
+    if (state.helperHired || state.cash < 35) return false;
+    setState((current) => {
+      if (current.helperHired || current.cash < 35) return current;
+      return {
+        ...current,
+        cash: current.cash - 35,
+        helperHired: true,
+        xp: current.xp + 15,
+        points: current.points + 10,
+        badges: current.badges.includes('team-player')
+          ? current.badges
+          : [...current.badges, 'team-player'],
+        ledger: [makeEntry('Hired a shop helper', -35), ...current.ledger].slice(0, 8),
+      };
+    });
+    return true;
+  }, [state.cash, state.helperHired]);
+
+  const resolveBusinessEvent = useCallback((choice: number) => {
+    const eventIndex = state.eventCycle % 3;
+    const eventMessages = [
+      [
+        'Smart planning! Your emergency fund covered the cooler. Your drinks are ready to serve.',
+        'You protected your stock instead of rushing. A good founder knows when to pause.',
+        'Your mentor helped fix the cooler. Asking for help is a strong business move.',
+      ],
+      [
+        'Your covered spot is open. Customers can shop without getting soaked.',
+        'Sharing a space saved your supplies and your cash. Teamwork works!',
+        'You protected your stock and used the quiet time to plan your next market day.',
+      ],
+      [
+        'A backup batch is ready! Planning ahead kept your shop moving.',
+        'The maker trade worked. You got supplies without spending all your money.',
+        'You compared your options before buying. Careful choices protect a business.',
+      ],
+    ] as const;
+    const message = eventMessages[eventIndex]?.[choice];
+    if (!message || choice < 0 || choice > 2) return null;
+    const eventCost = eventIndex === 2 && choice === 0
+      ? (VENTURES.find((venture) => venture.id === state.ventureId)?.unitCost ?? 4) * 4
+      : 0;
+    const cost = eventIndex === 0 && choice === 0 ? 12
+      : eventIndex === 0 && choice === 2 ? 5
+      : eventIndex === 1 && choice === 0 ? 8
+      : eventIndex === 2 && choice === 0 ? eventCost
+      : 0;
+    const fromSavings = eventIndex === 0 && choice === 0;
+    if (fromSavings && state.savings < cost) return null;
+    if (!fromSavings && state.cash < cost) return null;
+    const xp = choice === 0 ? 15 : choice === 1 ? 12 : 8;
+    setState((current) => {
+      if (fromSavings && current.savings < cost) return current;
+      if (!fromSavings && current.cash < cost) return current;
+      const next = {
+        ...current,
+        inventory: current.inventory + (eventIndex === 2 && choice === 0 ? 4 : 0),
+        cash: fromSavings ? current.cash : current.cash - cost,
+        savings: fromSavings ? current.savings - cost : current.savings,
+        xp: current.xp + xp,
+        points: current.points + 10,
+        eventCycle: current.eventCycle + 1,
+        ledger: cost > 0
+          ? [makeEntry('Handled a business surprise', -cost), ...current.ledger].slice(0, 8)
+          : current.ledger,
+      };
+      return next;
+    });
+    return message;
+  }, [state.cash, state.eventCycle, state.savings]);
+
   const value = useMemo(
     () => ({
       state,
@@ -287,6 +411,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
       saveMoney,
       withdrawSavings,
       completeQuest,
+      hireHelper,
+      resolveBusinessEvent,
     }),
     [
       state,
@@ -301,6 +427,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
       saveMoney,
       withdrawSavings,
       completeQuest,
+      hireHelper,
+      resolveBusinessEvent,
     ],
   );
 

@@ -1,5 +1,4 @@
 import { createHash, randomBytes, scrypt, timingSafeEqual } from "node:crypto";
-import { promisify } from "node:util";
 import { and, eq, gt, lt } from "drizzle-orm";
 import { Router, type NextFunction, type Request, type Response } from "express";
 import { db, bizQuestAccounts, bizQuestSessions } from "@workspace/db";
@@ -9,7 +8,20 @@ const PASSWORD_BYTES = 64;
 const SCRYPT_COST = 16_384;
 const SESSION_DAYS = 14;
 const GENDERS = ["girl", "boy", "nonbinary", "prefer-not-to-say"] as const;
-const scryptAsync = promisify(scrypt);
+function scryptAsync(password: string, salt: Buffer, bytes: number): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    scrypt(
+      password,
+      salt,
+      bytes,
+      { N: SCRYPT_COST, r: 8, p: 1, maxmem: 64 * 1024 * 1024 },
+      (error, derived) => {
+        if (error) reject(error);
+        else resolve(derived as Buffer);
+      },
+    );
+  });
+}
 
 type Gender = (typeof GENDERS)[number];
 type PublicAccount = { id: string; username: string; gender: Gender };
@@ -48,12 +60,7 @@ function genderFrom(value: unknown): Gender | null {
 
 async function hashPassword(password: string): Promise<string> {
   const salt = randomBytes(16);
-  const derived = (await scryptAsync(password, salt, PASSWORD_BYTES, {
-    N: SCRYPT_COST,
-    r: 8,
-    p: 1,
-    maxmem: 64 * 1024 * 1024,
-  })) as Buffer;
+  const derived = await scryptAsync(password, salt, PASSWORD_BYTES);
   return `scrypt$${SCRYPT_COST}$${salt.toString("base64url")}$${derived.toString("base64url")}`;
 }
 
@@ -65,12 +72,7 @@ async function verifyPassword(password: string, stored: string): Promise<boolean
   const salt = Buffer.from(saltText, "base64url");
   const expected = Buffer.from(expectedText, "base64url");
   if (salt.length !== 16 || expected.length !== PASSWORD_BYTES) return false;
-  const actual = (await scryptAsync(password, salt, PASSWORD_BYTES, {
-    N: SCRYPT_COST,
-    r: 8,
-    p: 1,
-    maxmem: 64 * 1024 * 1024,
-  })) as Buffer;
+  const actual = await scryptAsync(password, salt, PASSWORD_BYTES);
   return timingSafeEqual(actual, expected);
 }
 

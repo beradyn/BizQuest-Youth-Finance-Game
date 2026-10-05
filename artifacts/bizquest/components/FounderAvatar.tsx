@@ -45,12 +45,27 @@ export function FounderAvatar({
       <Path d="M53 98 L53 111 Q64 120 75 111 L75 98 Z" fill={avatar.skin} />
       <Ellipse cx="31" cy="68" rx="8" ry="12" fill={avatar.skin} />
       <Ellipse cx="97" cy="68" rx="8" ry="12" fill={avatar.skin} />
-      <Ellipse cx="64" cy="67" rx="40" ry="46" fill={avatar.hair} />
+      {avatar.hairStyle === 'long' ? (
+        <Path d="M25 65 Q23 22 64 21 Q105 22 103 66 L99 116 Q88 126 79 111 L82 63 Q65 54 47 63 L49 112 Q37 126 27 113 Z" fill={avatar.hair} />
+      ) : avatar.hairStyle === 'short' ? (
+        <Path d="M26 70 Q21 25 63 21 Q104 22 102 68 Q90 52 82 48 Q65 55 48 48 Q37 54 26 70 Z" fill={avatar.hair} />
+      ) : (
+        <Ellipse cx="64" cy="67" rx="40" ry="46" fill={avatar.hair} />
+      )}
       <Ellipse cx="64" cy="70" rx="33" ry="39" fill={avatar.skin} />
       <Path
         d="M30 61 Q28 29 54 23 Q82 14 98 41 Q103 50 98 64 Q91 54 84 47 Q71 55 51 49 Q41 55 30 68 Z"
         fill={avatar.hair}
       />
+      {avatar.hairStyle === 'curls' ? (
+        <>
+          <Circle cx="39" cy="40" r="8" fill={avatar.hair} />
+          <Circle cx="53" cy="29" r="9" fill={avatar.hair} />
+          <Circle cx="69" cy="27" r="9" fill={avatar.hair} />
+          <Circle cx="84" cy="34" r="9" fill={avatar.hair} />
+          <Circle cx="94" cy="47" r="8" fill={avatar.hair} />
+        </>
+      ) : null}
       <Path d="M34 52 Q45 42 53 31 Q50 48 41 56 Z" fill={avatar.hair} />
       <Ellipse cx="51" cy="69" rx="3.2" ry="4.2" fill="#332821" />
       <Ellipse cx="77" cy="69" rx="3.2" ry="4.2" fill="#332821" />

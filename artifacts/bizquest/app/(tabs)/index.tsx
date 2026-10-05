@@ -89,6 +89,26 @@ export default function HomeScreen() {
         </View>
       </View>
 
+      <Panel tone="gold" style={styles.salesSprint}>
+        <View style={styles.sprintTop}>
+          <RoundIcon name="storefront-outline" color={colors.accentForeground} background={colors.card} size={40} />
+          <View style={styles.sprintCopy}>
+            <Text style={[styles.sprintTitle, { color: colors.foreground }]}>
+              {state.weeksCompleted ? 'Your next sales sprint' : 'Your first sales sprint'}
+            </Text>
+            <Text style={[styles.sprintDescription, { color: colors.inkSoft }]}>
+              {state.weekSales} of 5 customers · {state.weeksCompleted} market weeks finished
+            </Text>
+          </View>
+          <Ionicons name="star" size={18} color={colors.gold} />
+        </View>
+        <View style={[styles.xpTrack, { backgroundColor: colors.card }]}>
+          <View style={[styles.xpFill, { backgroundColor: colors.primary, width: `${Math.max(5, state.weekSales * 20)}%` }]} />
+        </View>
+        <Text style={[styles.sprintHint, { color: colors.accentForeground }]}>5 sales unlock the Sales Star badge + 25 XP</Text>
+        <AppButton label={ventureName ? 'Meet my next customer' : 'Choose my first shop'} icon="arrow-forward" compact variant="light" onPress={() => router.navigate('/business')} />
+      </Panel>
+
       <Panel tone="plain" style={styles.questPanel}>
         <View style={styles.questHeader}>
           <RoundIcon
@@ -232,4 +252,10 @@ const styles = StyleSheet.create({
   skillRow: { flexDirection: 'row', gap: 9 },
   skillItem: { flex: 1, minHeight: 44, borderRadius: 15, borderWidth: 1, backgroundColor: '#FFFEFB', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
   skillLabel: { fontSize: 12, fontWeight: '800' },
+  salesSprint: { gap: 10 },
+  sprintTop: { flexDirection: 'row', alignItems: 'center', gap: 9 },
+  sprintCopy: { flex: 1, gap: 2 },
+  sprintTitle: { fontSize: 14, fontWeight: '900' },
+  sprintDescription: { fontSize: 10, lineHeight: 14 },
+  sprintHint: { fontSize: 10, fontWeight: '900' },
 });
