@@ -1,6 +1,6 @@
-# [Project name]
+# BizQuest
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+BizQuest is a playful financial-literacy and entrepreneurship game for ages 5–17, built by a team for a competition.
 
 ## Run & Operate
 
@@ -22,15 +22,22 @@ _Replace the heading above with the project's name, and this line with one sente
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+- `artifacts/bizquest` — Expo mobile game and brand assets
+- `artifacts/bizquest/constants/game-content.ts` — venture types, learning quests, and avatar choices
+- `artifacts/bizquest/providers/GameProvider.tsx` — player progress and local persistence
+- `artifacts/bizquest/constants/colors.ts` — BizQuest color palette
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- Business funding uses practice-only Biz Bucks; it is not connected to real money.
+- Player progress is stored on-device so the first version works without accounts or a server.
 
 ## Product
 
-_Describe the high-level user-facing capabilities of this app once they exist._
+- Players choose a small business, manage product stock and practice cash, adjust prices, make sales, and move money into savings.
+- Short decision quests teach budgeting, saving, costs, and profit; XP, Biz Points, and badges reward progress.
+- Players can customize a procedural founder avatar with skin tone, hair, outfit, and accessories.
+- Branding centers on a gold compass coin; the visual direction is energetic, warm, and kid-friendly.
 
 ## User preferences
 
