@@ -10,6 +10,8 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: bizquest-auth
+    description: Username and password accounts for BizQuest
 paths:
   /healthz:
     get:
@@ -24,7 +26,95 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /bizquest/auth/register:
+    post:
+      operationId: bizquestRegister
+      tags: [bizquest-auth]
+      summary: Create a BizQuest account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BizQuestRegisterRequest"
+      responses:
+        "201":
+          description: Account created and signed in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BizQuestAuthSession"
+        "400":
+          description: The account details are invalid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: That username is already taken
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /bizquest/auth/login:
+    post:
+      operationId: bizquestLogin
+      tags: [bizquest-auth]
+      summary: Sign in to a BizQuest account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BizQuestLoginRequest"
+      responses:
+        "200":
+          description: Signed-in account session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BizQuestAuthSession"
+        "401":
+          description: Username or password is incorrect
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /bizquest/auth/me:
+    get:
+      operationId: bizquestMe
+      tags: [bizquest-auth]
+      summary: Check the current BizQuest session
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Signed-in account profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BizQuestAccount"
+        "401":
+          description: Session is not valid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /bizquest/auth/logout:
+    post:
+      operationId: bizquestLogout
+      tags: [bizquest-auth]
+      summary: End the current BizQuest session
+      security:
+        - bearerAuth: []
+      responses:
+        "204":
+          description: Session ended
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
   schemas:
     HealthStatus:
       type: object
@@ -33,4 +123,61 @@ components:
           type: string
       required:
         - status
+    BizQuestGender:
+      type: string
+      enum: [girl, boy, nonbinary, prefer-not-to-say]
+    BizQuestRegisterRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        username:
+          type: string
+          minLength: 3
+          maxLength: 18
+          pattern: "^[a-zA-Z0-9_]+$"
+        password:
+          type: string
+          minLength: 8
+          maxLength: 72
+        gender:
+          $ref: "#/components/schemas/BizQuestGender"
+      required: [username, password, gender]
+    BizQuestLoginRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        username:
+          type: string
+          minLength: 3
+          maxLength: 18
+        password:
+          type: string
+          minLength: 8
+          maxLength: 72
+      required: [username, password]
+    BizQuestAccount:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        username:
+          type: string
+        gender:
+          $ref: "#/components/schemas/BizQuestGender"
+      required: [id, username, gender]
+    BizQuestAuthSession:
+      type: object
+      properties:
+        token:
+          type: string
+        user:
+          $ref: "#/components/schemas/BizQuestAccount"
+      required: [token, user]
+    ApiError:
+      type: object
+      properties:
+        message:
+          type: string
+      required: [message]
 
